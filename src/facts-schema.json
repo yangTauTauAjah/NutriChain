@@ -1,0 +1,123 @@
+[
+  {
+    "name": "age",
+    "type": "number",
+    "description": "User age in years"
+  },
+  {
+    "name": "gender",
+    "type": "enum",
+    "description": "Biological sex",
+    "values": ["male", "female"]
+  },
+  {
+    "name": "weight_kg",
+    "type": "number",
+    "description": "Body weight in kilograms"
+  },
+  {
+    "name": "height_cm",
+    "type": "number",
+    "description": "Height in centimetres"
+  },
+  {
+    "name": "activity_level",
+    "type": "enum",
+    "description": "Daily physical activity level",
+    "values": ["sedentary", "light", "moderate", "active", "very_active"]
+  },
+  {
+    "name": "medical_conditions",
+    "type": "enum[]",
+    "description": "Diagnosed medical conditions",
+    "values": ["hypertension", "diabetes"]
+  },
+  {
+    "name": "allergies",
+    "type": "string[]",
+    "description": "Food allergen categories (e.g. nuts, lactose, gluten, seafood, eggs)"
+  },
+  {
+    "name": "goal",
+    "type": "enum",
+    "description": "Dietary goal",
+    "values": ["lose_weight", "maintain", "gain_weight"]
+  },
+  {
+    "name": "bmi",
+    "type": "number",
+    "description": "Body Mass Index — derived by engine"
+  },
+  {
+    "name": "bmi_category",
+    "type": "enum",
+    "description": "BMI classification — derived by engine",
+    "values": ["Underweight", "Normal", "Overweight", "Obese"]
+  },
+  {
+    "name": "bmr",
+    "type": "number",
+    "description": "Basal Metabolic Rate in kcal/day — derived by engine"
+  },
+  {
+    "name": "tdee",
+    "type": "number",
+    "description": "Total Daily Energy Expenditure in kcal/day — derived by engine"
+  },
+  {
+    "name": "target_calories",
+    "type": "number",
+    "description": "Goal-adjusted daily calorie target in kcal — derived by engine"
+  },
+  {
+    "name": "diet_type",
+    "type": "enum",
+    "description": "Assigned diet type — derived by engine",
+    "values": ["DASH", "Low-GI", "Balanced"]
+  },
+  {
+    "name": "sodium_limit_mg",
+    "type": "number",
+    "description": "Maximum daily sodium intake in mg — derived by engine"
+  },
+  {
+    "name": "carb_limit_pct",
+    "type": "number",
+    "description": "Maximum carbohydrate percentage of calories — derived by engine"
+  },
+  {
+    "name": "protein_pct",
+    "type": "number",
+    "description": "Protein percentage of total calories — derived by engine"
+  },
+  {
+    "name": "fat_pct",
+    "type": "number",
+    "description": "Fat percentage of total calories — derived by engine"
+  },
+  {
+    "name": "carb_g",
+    "type": "number",
+    "description": "Daily carbohydrate target in grams — derived by engine"
+  },
+  {
+    "name": "fat_g",
+    "type": "number",
+    "description": "Daily fat target in grams — derived by engine"
+  },
+  {
+    "name": "protein_g",
+    "type": "number",
+    "description": "Daily protein target in grams — derived by engine"
+  },
+  {
+    "name": "blacklisted_foods",
+    "type": "string[]",
+    "description": "Foods eliminated due to declared allergies — derived by engine"
+  },
+  {
+    "name": "recommended_foods",
+    "type": "string[]",
+    "description": "Diet-appropriate recommended foods — derived by engine"
+  }
+]

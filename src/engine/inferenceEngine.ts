@@ -1,8 +1,11 @@
 import type { Facts, InferenceResult, TraceEntry } from './types';
-import { RULES } from './knowledgeBase';
+import { loadRules } from './ruleLoader';
 import { WorkingMemory } from './workingMemory';
 
 export function runInference(initialFacts: Facts): InferenceResult {
+  // Load rules fresh on every run so admin edits take effect without a page reload.
+  const RULES = loadRules();
+
   const wm = new WorkingMemory(initialFacts);
   const trace: TraceEntry[] = [];
   const fired = new Set<string>();

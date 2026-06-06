@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { runInference } from './engine/inferenceEngine';
+import AdminPage from './admin/AdminPage';
 import { DIET_FOODS } from './engine/foods';
 import type {
   UserProfile,
@@ -433,9 +434,18 @@ function ProgressBar({ step }: { step: number }) {
 // ── App root ──────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [step, setStep] = useState(1);
+  const [hash, setHash]     = useState(window.location.hash);
+  const [step, setStep]     = useState(1);
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [result, setResult] = useState<InferenceResult | null>(null);
+
+  useEffect(() => {
+    const handler = () => setHash(window.location.hash);
+    window.addEventListener('hashchange', handler);
+    return () => window.removeEventListener('hashchange', handler);
+  }, []);
+
+  if (hash === '#/admin') return <AdminPage />;
 
   function handleAnalyze() {
     const res = runInference({ ...profile });
