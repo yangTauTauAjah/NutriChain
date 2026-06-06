@@ -19,7 +19,7 @@ export interface RuleJson {
   id: string;
   description: string;
   salience: number;
-  /** Full JS arrow-function string, e.g. "(f) => f.bmi === undefined" */
+  /** Full JS arrow-function string, e.g. "(f) => FACTS.bmi === undefined" */
   condition: string;
   /** Full JS arrow-function string, e.g. "(f) => ({ bmi: 22 })" */
   action: string;

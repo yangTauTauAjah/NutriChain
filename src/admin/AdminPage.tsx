@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import {
   type RuleJson,
   type FactFieldSchema,
@@ -11,7 +11,40 @@ import {
   resetFactsSchema,
   validateRuleJson,
 } from '../engine/ruleLoader';
-import './admin.css';
+
+import { Button }   from '@/components/ui/button';
+import { Input }    from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label }    from '@/components/ui/label';
+import { Badge }    from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert"
+import { AlertCircleIcon } from 'lucide-react';
 
 // ── Password helpers ─────────────────────────────────────────────────────────
 
@@ -26,22 +59,29 @@ async function hashPw(pw: string): Promise<string> {
 }
 
 async function initDefaultHash(): Promise<void> {
-  if (!localStorage.getItem(PW_KEY)) {
+  if (!localStorage.getItem(PW_KEY))
     localStorage.setItem(PW_KEY, await hashPw(DEFAULT_PW));
-  }
 }
 
 async function checkPw(pw: string): Promise<boolean> {
   const stored = localStorage.getItem(PW_KEY);
-  if (!stored) return false;
-  return (await hashPw(pw)) === stored;
+  return !!stored && (await hashPw(pw)) === stored;
 }
 
-async function changePw(currentPw: string, newPw: string): Promise<string | null> {
-  if (!(await checkPw(currentPw))) return 'Current password is incorrect.';
-  if (newPw.length < 6) return 'New password must be at least 6 characters.';
-  localStorage.setItem(PW_KEY, await hashPw(newPw));
+async function changePw(current: string, next: string): Promise<string | null> {
+  if (!(await checkPw(current))) return 'Current password is incorrect.';
+  if (next.length < 6) return 'New password must be at least 6 characters.';
+  localStorage.setItem(PW_KEY, await hashPw(next));
   return null;
+}
+
+// ── Salience colour helpers ───────────────────────────────────────────────────
+
+function salienceBadge(sal: number) {
+  if (sal >= 30) return 'destructive';
+  if (sal >= 20) return 'default';
+  if (sal >= 10) return 'secondary';
+  return 'outline';
 }
 
 // ── PasswordGate ─────────────────────────────────────────────────────────────
@@ -53,8 +93,7 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
 
   useEffect(() => { void initDefaultHash(); }, []);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit() {
     setBusy(true); setErr('');
     const ok = await checkPw(pw);
     setBusy(false);
@@ -62,184 +101,240 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
   }
 
   return (
-    <div className="admin-root">
-      <div className="pw-gate">
-        <div className="pw-card">
-          <h1>NutriChain Admin</h1>
-          <p className="pw-subtitle">
-            Enter the admin password to manage rules and facts schema.
-            <br />Default password: <code>{DEFAULT_PW}</code>
-          </p>
-          <form onSubmit={(e) => { void handleSubmit(e); }}>
-            <div className="pw-field">
-              <label htmlFor="pw-input">Password</label>
-              <input
-                id="pw-input"
-                type="password"
-                autoComplete="current-password"
-                value={pw}
-                onChange={(e) => setPw(e.target.value)}
-                autoFocus
-              />
-            </div>
-            {err && <div className="pw-error">{err}</div>}
-            <button className="pw-btn" type="submit" disabled={busy || !pw}>
-              {busy ? 'Verifying…' : 'Sign in'}
-            </button>
-          </form>
-        </div>
+    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+      <div className="w-full max-w-sm border rounded-xl p-8 shadow-sm bg-card">
+        <h1 className="text-xl font-bold mb-1">NutriChain Admin</h1>
+        <p className="text-muted-foreground text-sm mb-6">
+          Default password: <code className="text-xs bg-muted px-1 rounded">{DEFAULT_PW}</code>
+        </p>
+        <form onSubmit={(e) => { e.preventDefault(); void handleSubmit(); }} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="pw-input">Password</Label>
+            <Input
+              id="pw-input"
+              type="password"
+              autoComplete="current-password"
+              value={pw}
+              onChange={(e) => setPw(e.target.value)}
+              autoFocus
+            />
+          </div>
+          {err && <p className="text-sm text-destructive">{err}</p>}
+          <Button type="submit" className="w-full" disabled={busy || !pw}>
+            {busy ? 'Verifying…' : 'Sign in'}
+          </Button>
+        </form>
       </div>
     </div>
   );
 }
 
-// ── Modal wrapper ─────────────────────────────────────────────────────────────
+// ── Change-password dialog ────────────────────────────────────────────────────
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
+function ChangePwDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [cur, setCur]   = useState('');
+  const [next, setNext] = useState('');
+  const [msg, setMsg]   = useState<{ text: string; ok: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function handleChange() {
+    setBusy(true); setMsg(null);
+    const err = await changePw(cur, next);
+    setBusy(false);
+    if (err) { setMsg({ text: err, ok: false }); }
+    else { setMsg({ text: 'Password updated.', ok: true }); setCur(''); setNext(''); }
+  }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>{title}</h3>
-          <button className="modal-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="modal-body">{children}</div>
-      </div>
-    </div>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Change password</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={(e) => { e.preventDefault(); void handleChange(); }} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>Current password</Label>
+            <Input type="password" value={cur} onChange={(e) => setCur(e.target.value)} autoFocus />
+          </div>
+          <div className="space-y-1.5">
+            <Label>New password <span className="text-muted-foreground text-xs">(min 6 chars)</span></Label>
+            <Input type="password" value={next} onChange={(e) => setNext(e.target.value)} />
+          </div>
+          {msg && (
+            <p className={`text-sm ${msg.ok ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}>{msg.text}</p>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" type="button" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={busy || !cur || !next}>
+              {busy ? 'Saving…' : 'Update password'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-// ── Rule modal ────────────────────────────────────────────────────────────────
+// ── Rule dialog ───────────────────────────────────────────────────────────────
 
 const EMPTY_RULE: RuleJson = { id: '', description: '', salience: 10, condition: '', action: '' };
 
-interface RuleModalProps {
+interface RuleDialogProps {
+  open: boolean;
   initial: RuleJson | null;
   onSave: (r: RuleJson) => void;
   onClose: () => void;
 }
 
-function RuleModal({ initial, onSave, onClose }: RuleModalProps) {
-  const [rule, setRule]           = useState<RuleJson>(initial ?? { ...EMPTY_RULE });
-  const [validateMsg, setValidateMsg] = useState<{ text: string; ok: boolean } | null>(null);
+function RuleDialog({ open, initial, onSave, onClose }: RuleDialogProps) {
+  const [rule, setRule]     = useState<RuleJson>(initial ?? { ...EMPTY_RULE });
+  const [valMsg, setValMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  useEffect(() => {
+    setRule(initial ?? { ...EMPTY_RULE });
+    setValMsg(null);
+  }, [initial, open]);
 
   function set<K extends keyof RuleJson>(key: K, val: RuleJson[K]) {
     setRule((r) => ({ ...r, [key]: val }));
-    setValidateMsg(null);
+    setValMsg(null);
   }
 
   function handleValidate() {
     const err = validateRuleJson(rule);
-    setValidateMsg(err ? { text: err, ok: false } : { text: 'Functions compiled successfully.', ok: true });
+    setValMsg(err ? { text: err, ok: false } : { text: 'Both functions compiled successfully.', ok: true });
   }
 
   function handleSave() {
     const err = validateRuleJson(rule);
-    if (err) { setValidateMsg({ text: err, ok: false }); return; }
+    if (err) { setValMsg({ text: err, ok: false }); return; }
     onSave(rule);
   }
 
   return (
-    <Modal title={initial ? `Edit rule: ${rule.id}` : 'Add new rule'} onClose={onClose}>
-      <div className="warn-banner" style={{ marginBottom: '1.25rem' }}>
-        Condition and Action bodies are evaluated as JavaScript. Only edit rules from trusted sources.
-      </div>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-2xl flex flex-col gap-0 p-0 max-h-[90vh]">
 
-      <div className="edit-grid">
-        <div className="form-field">
-          <label>Rule ID</label>
-          <input
-            type="text"
-            placeholder="R_My_Rule"
-            value={rule.id}
-            onChange={(e) => set('id', e.target.value)}
-          />
-        </div>
-        <div className="form-field">
-          <label>Salience (higher fires first)</label>
-          <input
-            type="number"
-            min={0}
-            max={9999}
-            value={rule.salience}
-            onChange={(e) => set('salience', parseInt(e.target.value) || 0)}
-          />
-        </div>
-        <div className="form-field full-width">
-          <label>Description</label>
-          <input
-            type="text"
-            placeholder="Human-readable explanation"
-            value={rule.description}
-            onChange={(e) => set('description', e.target.value)}
-          />
-        </div>
-      </div>
+        {/* Fixed header */}
+        <DialogHeader className="px-6 pt-5 pb-4 pr-14 shrink-0 border-b">
+          <DialogTitle>{initial ? `Edit rule: ${rule.id}` : 'Add new rule'}</DialogTitle>
+        </DialogHeader>
 
-      {/* IF / THEN */}
-      <div className="if-then-block">
-        <div className="form-field">
-          <label className="if-label">IF <span className="if-hint">— body of <code>(f: Facts) =&gt; boolean</code></span></label>
-          <textarea
-            className="code-tall"
-            spellCheck={false}
-            placeholder={`f.bmi !== undefined && f.bmi_category === undefined`}
-            value={rule.condition}
-            onChange={(e) => set('condition', e.target.value)}
-          />
-        </div>
-        <div className="form-field">
-          <label className="if-label">THEN <span className="if-hint">— body of <code>(f: Facts) =&gt; Partial&lt;Facts&gt;</code></span></label>
-          <textarea
-            className="code-tall"
-            spellCheck={false}
-            placeholder={`({ bmi_category: f.bmi < 18.5 ? 'Underweight' : 'Normal' })`}
-            value={rule.action}
-            onChange={(e) => set('action', e.target.value)}
-          />
-        </div>
-        <p className="ctx-hint">
-          Available in both bodies: <code>f</code> (Facts), <code>ALLERGEN_FOODS</code>, <code>DIET_FOODS</code>, <code>ACTIVITY_MULTIPLIERS</code>.
-          <br />Expression bodies are returned automatically; write <code>return …;</code> for multi-statement bodies.
-        </p>
-      </div>
+        {/* Scrollable body — min-h-0 is required for flex children to actually scroll */}
+        <div className="flex flex-col gap-4 overflow-y-auto min-h-0 flex-1 px-6 py-4 space-y-4">
+          {/* <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800">
+            Condition and Action are evaluated as JavaScript.
+          </p> */}
 
-      <div className="edit-actions">
-        <button className="btn-admin btn-admin-primary" onClick={handleSave} disabled={!rule.id}>
-          {initial ? 'Save changes' : 'Add rule'}
-        </button>
-        <button className="btn-admin btn-admin-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn-admin btn-admin-warning" onClick={handleValidate}>Validate</button>
-        {validateMsg && (
-          <div className={`validate-result ${validateMsg.ok ? 'ok' : 'err'}`}>{validateMsg.text}</div>
-        )}
-      </div>
-    </Modal>
+           <Alert variant="default" className="max-w-md bg-amber-50 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800">
+            <AlertCircleIcon />
+            <AlertTitle>Condition and Action are evaluated as JavaScript.</AlertTitle>
+          </Alert>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Rule ID</Label>
+              <Input
+                placeholder="R_My_Rule"
+                value={rule.id}
+                onChange={(e) => set('id', e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Salience</Label>
+              <Input
+                type="number"
+                min={0}
+                max={9999}
+                value={rule.salience}
+                onChange={(e) => set('salience', parseInt(e.target.value) || 0)}
+              />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label>Description</Label>
+              <Input
+                placeholder="Human-readable explanation of what this rule does"
+                value={rule.description}
+                onChange={(e) => set('description', e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-indigo-500 dark:text-indigo-400 font-semibold text-sm">
+                IF{' '}<span className="text-muted-foreground font-normal text-xs">condition</span>
+              </Label>
+              <Textarea
+                className="font-mono text-xs min-h-22.5 resize-y"
+                spellCheck={false}
+                placeholder="e.g., FACTS.bmi !== undefined && FACTS.bmi_category === undefined"
+                value={rule.condition}
+                onChange={(e) => set('condition', e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-indigo-500 dark:text-indigo-400 font-semibold text-sm">
+                THEN{' '}<span className="text-muted-foreground font-normal text-xs">action</span>
+              </Label>
+              <Textarea
+                className="font-mono text-xs min-h-22.5 resize-y"
+                spellCheck={false}
+                placeholder="e.g., ({ bmi_category: FACTS.bmi < 18.5 ? 'Underweight' : 'Normal' })"
+                value={rule.action}
+                onChange={(e) => set('action', e.target.value)}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Available Variables: <code>FACTS</code>, <code>ALLERGEN_FOODS</code>, <code>DIET_FOODS</code>,{' '}
+              <code>ACTIVITY_MULTIPLIERS</code>.
+            </p>
+          </div>
+
+          {valMsg && (
+            <p className={`text-xs rounded-md px-3 py-2 border ${
+              valMsg.ok
+                ? 'text-green-700 bg-green-50 border-green-200 dark:text-green-400 dark:bg-green-950/30 dark:border-green-800'
+                : 'text-destructive bg-destructive/5 border-destructive/20 font-mono'
+            }`}>
+              {valMsg.text}
+            </p>
+          )}
+        </div>
+
+        {/* Fixed footer */}
+        <DialogFooter className="px-6 py-4 border-t shrink-0 gap-2">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" onClick={handleValidate}>Validate</Button>
+          <Button onClick={handleSave} disabled={!rule.id}>
+            {initial ? 'Save changes' : 'Add rule'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-// ── Fact modal ────────────────────────────────────────────────────────────────
+// ── Fact dialog ───────────────────────────────────────────────────────────────
 
 const TYPE_OPTIONS: FactFieldType[] = ['number', 'string', 'boolean', 'enum', 'enum[]', 'string[]'];
 const EMPTY_FACT: FactFieldSchema   = { name: '', type: 'number', description: '' };
 
-interface FactModalProps {
+interface FactDialogProps {
+  open: boolean;
   initial: FactFieldSchema | null;
   onSave: (f: FactFieldSchema) => void;
   onClose: () => void;
 }
 
-function FactModal({ initial, onSave, onClose }: FactModalProps) {
-  const [fact, setFact] = useState<FactFieldSchema>(
-    initial ? { ...initial, values: initial.values ? [...initial.values] : [] } : { ...EMPTY_FACT }
-  );
+function FactDialog({ open, initial, onSave, onClose }: FactDialogProps) {
+  const [fact, setFact]     = useState<FactFieldSchema>(initial ?? { ...EMPTY_FACT });
   const [valuesStr, setValuesStr] = useState((initial?.values ?? []).join(', '));
+
+  useEffect(() => {
+    setFact(initial ?? { ...EMPTY_FACT });
+    setValuesStr((initial?.values ?? []).join(', '));
+  }, [initial, open]);
 
   function set<K extends keyof FactFieldSchema>(key: K, val: FactFieldSchema[K]) {
     setFact((f) => ({ ...f, [key]: val }));
@@ -248,109 +343,79 @@ function FactModal({ initial, onSave, onClose }: FactModalProps) {
   const needsValues = fact.type === 'enum' || fact.type === 'enum[]';
 
   function handleSave() {
-    const saved: FactFieldSchema = {
+    onSave({
       ...fact,
       values: needsValues
         ? valuesStr.split(',').map((v) => v.trim()).filter(Boolean)
         : undefined,
-    };
-    onSave(saved);
+    });
   }
 
   return (
-    <Modal title={initial ? `Edit fact: ${fact.name}` : 'Add new fact field'} onClose={onClose}>
-      <div className="edit-grid">
-        <div className="form-field">
-          <label>Field name (key in Facts)</label>
-          <input
-            type="text"
-            placeholder="e.g. bmi_category"
-            value={fact.name}
-            onChange={(e) => set('name', e.target.value)}
-          />
-        </div>
-        <div className="form-field">
-          <label>Data type</label>
-          <select value={fact.type} onChange={(e) => set('type', e.target.value as FactFieldType)}>
-            {TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
-        <div className="form-field full-width">
-          <label>Description</label>
-          <input
-            type="text"
-            placeholder="Brief explanation of what this fact represents"
-            value={fact.description}
-            onChange={(e) => set('description', e.target.value)}
-          />
-        </div>
-        {needsValues && (
-          <div className="form-field full-width">
-            <label>Allowed values (comma-separated)</label>
-            <input
-              type="text"
-              placeholder="e.g. Underweight, Normal, Overweight, Obese"
-              value={valuesStr}
-              onChange={(e) => setValuesStr(e.target.value)}
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{initial ? `Edit fact: ${fact.name}` : 'Add new fact field'}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Field name</Label>
+              <Input
+                placeholder="e.g. bmi_category"
+                value={fact.name}
+                onChange={(e) => set('name', e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Data type</Label>
+              <Select value={fact.type} onValueChange={(v) => set('type', v as FactFieldType)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TYPE_OPTIONS.map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Description</Label>
+            <Input
+              placeholder="Brief explanation of what this fact represents"
+              value={fact.description}
+              onChange={(e) => set('description', e.target.value)}
             />
           </div>
-        )}
-      </div>
-      <div className="edit-actions">
-        <button className="btn-admin btn-admin-primary" onClick={handleSave} disabled={!fact.name}>
-          {initial ? 'Save changes' : 'Add fact'}
-        </button>
-        <button className="btn-admin btn-admin-ghost" onClick={onClose}>Cancel</button>
-      </div>
-    </Modal>
-  );
-}
 
-// ── Change-password modal ─────────────────────────────────────────────────────
-
-function ChangePwModal({ onClose }: { onClose: () => void }) {
-  const [cur, setCur]   = useState('');
-  const [next, setNext] = useState('');
-  const [msg, setMsg]   = useState<{ text: string; ok: boolean } | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function handleChange(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true); setMsg(null);
-    const err = await changePw(cur, next);
-    setBusy(false);
-    if (err) { setMsg({ text: err, ok: false }); }
-    else { setMsg({ text: 'Password updated successfully.', ok: true }); setCur(''); setNext(''); }
-  }
-
-  return (
-    <Modal title="Change password" onClose={onClose}>
-      <form onSubmit={(e) => { void handleChange(e); }}>
-        <div className="edit-grid">
-          <div className="form-field">
-            <label>Current password</label>
-            <input type="password" value={cur} onChange={(e) => setCur(e.target.value)} autoFocus />
-          </div>
-          <div className="form-field">
-            <label>New password (min 6 chars)</label>
-            <input type="password" value={next} onChange={(e) => setNext(e.target.value)} />
-          </div>
-        </div>
-        <div className="edit-actions" style={{ marginTop: '1rem' }}>
-          <button className="btn-admin btn-admin-primary" type="submit" disabled={busy || !cur || !next}>
-            {busy ? 'Saving…' : 'Update password'}
-          </button>
-          <button className="btn-admin btn-admin-ghost" type="button" onClick={onClose}>Cancel</button>
-          {msg && (
-            <div className={`validate-result ${msg.ok ? 'ok' : 'err'}`}>{msg.text}</div>
+          {needsValues && (
+            <div className="space-y-1.5">
+              <Label>Allowed values <span className="text-muted-foreground text-xs">(comma-separated)</span></Label>
+              <Input
+                placeholder="e.g. Underweight, Normal, Overweight, Obese"
+                value={valuesStr}
+                onChange={(e) => setValuesStr(e.target.value)}
+              />
+            </div>
           )}
         </div>
-      </form>
-    </Modal>
+
+        <DialogFooter className="gap-2">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} disabled={!fact.name}>
+            {initial ? 'Save changes' : 'Add fact'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-// ── AdminPage (root) ─────────────────────────────────────────────────────────
+// ── Modal state type ──────────────────────────────────────────────────────────
 
 type ModalState =
   | { kind: 'none' }
@@ -360,189 +425,255 @@ type ModalState =
   | { kind: 'edit-rule'; rule: RuleJson }
   | { kind: 'change-pw' };
 
+// ── AdminPage ─────────────────────────────────────────────────────────────────
+
 export default function AdminPage() {
-  const [authed, setAuthed]       = useState(false);
-  const [rules, setRules]         = useState<RuleJson[]>(() => getRulesJson());
-  const [schema, setSchema]       = useState<FactFieldSchema[]>(() => getFactsSchema());
-  const [modal, setModal]         = useState<ModalState>({ kind: 'none' });
+  // Dark mode for the whole admin page, including Dialog portals (they render in document.body
+  // which is a descendant of html.dark, so the @custom-variant dark (&:is(.dark *)) picks it up).
+  useLayoutEffect(() => {
+    document.documentElement.classList.add('dark');
+    return () => document.documentElement.classList.remove('dark');
+  }, []);
+
+  const [authed, setAuthed]   = useState(false);
+  const [rules, setRules]     = useState<RuleJson[]>(() => getRulesJson());
+  const [schema, setSchema]   = useState<FactFieldSchema[]>(() => getFactsSchema());
+  const [modal, setModal]     = useState<ModalState>({ kind: 'none' });
 
   const closeModal = useCallback(() => setModal({ kind: 'none' }), []);
   const handleAuth = useCallback(() => setAuthed(true), []);
 
   if (!authed) return <PasswordGate onAuth={handleAuth} />;
 
-  // ── Facts handlers ────────────────────────────────────────────────────────
+  // ── Facts handlers ──────────────────────────────────────────────────────────
   function saveFact(fact: FactFieldSchema) {
     const updated = modal.kind === 'add-fact'
       ? [...schema, fact]
-      : schema.map((f) => (f.name === fact.name ? fact : f));
-    setSchema(updated);
-    saveFactsSchema(updated);
-    closeModal();
+      : schema.map((f) => (FACTS.name === fact.name ? fact : f));
+    setSchema(updated); saveFactsSchema(updated); closeModal();
   }
 
   function deleteFact(name: string) {
     if (!confirm(`Delete fact field "${name}"?`)) return;
-    const updated = schema.filter((f) => f.name !== name);
-    setSchema(updated);
-    saveFactsSchema(updated);
+    const updated = schema.filter((f) => FACTS.name !== name);
+    setSchema(updated); saveFactsSchema(updated);
   }
 
   function resetFacts() {
     if (!confirm('Reset facts schema to built-in defaults?')) return;
-    resetFactsSchema();
-    setSchema(getFactsSchema());
+    resetFactsSchema(); setSchema(getFactsSchema());
   }
 
-  // ── Rules handlers ────────────────────────────────────────────────────────
+  // ── Rules handlers ──────────────────────────────────────────────────────────
   function saveRule(rule: RuleJson) {
     const updated = modal.kind === 'add-rule'
       ? [...rules, rule]
       : rules.map((r) => (r.id === rule.id ? rule : r));
-    setRules(updated);
-    saveRulesJson(updated);
-    closeModal();
+    setRules(updated); saveRulesJson(updated); closeModal();
   }
 
   function deleteRule(id: string) {
     if (!confirm(`Delete rule "${id}"?`)) return;
     const updated = rules.filter((r) => r.id !== id);
-    setRules(updated);
-    saveRulesJson(updated);
+    setRules(updated); saveRulesJson(updated);
   }
 
   function resetRules() {
-    if (!confirm('Reset all rules to built-in defaults? This will discard all custom rules.')) return;
-    resetRulesJson();
-    setRules(getRulesJson());
+    if (!confirm('Reset all rules to built-in defaults?')) return;
+    resetRulesJson(); setRules(getRulesJson());
   }
 
   const sortedRules = [...rules].sort((a, b) => b.salience - a.salience || a.id.localeCompare(b.id));
 
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="admin-root">
+    <div className="min-h-screen bg-background">
+
       {/* Header */}
-      <div className="admin-header">
-        <span className="admin-header-title">NutriChain <span>Admin</span></span>
-        <button
-          className="admin-nav-link"
-          onClick={() => setModal({ kind: 'change-pw' })}
-        >
+      <header className="border-b bg-card px-6 py-3 flex items-center gap-4">
+        <span className="font-bold text-base flex-1">
+          NutriChain <span className="text-muted-foreground font-normal">/ Admin</span>
+        </span>
+        <Button variant="ghost" size="sm" onClick={() => setModal({ kind: 'change-pw' })}>
           Change password
-        </button>
-        <a
-          className="admin-nav-link"
-          href="#"
-          onClick={(e) => { e.preventDefault(); window.location.hash = ''; window.location.reload(); }}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => { setAuthed(false); window.location.hash = ''; window.location.reload(); }}
         >
           ← Back to app
-        </a>
-        <button
-          className="admin-nav-link"
-          style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-          onClick={() => setAuthed(false)}
-        >
+        </Button>
+        {/* <Button variant="ghost" size="sm" onClick={() => setAuthed(false)}>
           Sign out
-        </button>
-      </div>
+        </Button> */}
+      </header>
 
-      <div className="admin-body">
+      <main className="max-w-7xl mx-auto px-6 py-8 space-y-12">
 
-        {/* ── Facts Schema ─────────────────────────────────────────────── */}
-        <div className="admin-section-header">
-          <div>
-            <h2>Facts Schema</h2>
-            <p>Defines the shape of the working-memory Facts object — reference when writing rule conditions and actions.</p>
+        {/* ── Facts Schema ───────────────────────────────────────────────── */}
+        <section>
+          <div className="flex items-end justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold">Facts Schema</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Defines the shape of the working-memory Facts object — reference when writing rule bodies.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={resetFacts}>Reset to defaults</Button>
+              <Button size="sm" onClick={() => setModal({ kind: 'add-fact' })}>+ Add fact</Button>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button className="btn-admin btn-admin-danger" onClick={resetFacts}>Reset to defaults</button>
-            <button className="btn-admin btn-admin-primary" onClick={() => setModal({ kind: 'add-fact' })}>+ Add fact</button>
+
+          <div className="border rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-44">Field name</TableHead>
+                  <TableHead className="w-28">Type</TableHead>
+                  <TableHead>Allowed values</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="w-28 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {schema.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
+                      No fact fields defined.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {schema.map((fact) => (
+                  <TableRow key={fact.name}>
+                    <TableCell className="font-mono text-xs text-indigo-600 dark:text-indigo-400">{fact.name}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="font-mono text-xs">{fact.type}</Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {fact.values?.join(', ') ?? '—'}
+                    </TableCell>
+                    <TableCell className="text-sm">{fact.description}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => setModal({ kind: 'edit-fact', fact })}>
+                          Edit
+                        </Button>
+                        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => deleteFact(fact.name)}>
+                          Delete
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
-        </div>
+        </section>
 
-        <div className="admin-table-wrap" style={{ marginBottom: '3rem' }}>
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Field name</th>
-                <th>Type</th>
-                <th>Allowed values</th>
-                <th>Description</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {schema.length === 0 && (
-                <tr><td colSpan={5} className="empty-state">No fact fields defined.</td></tr>
-              )}
-              {schema.map((fact) => (
-                <tr key={fact.name}>
-                  <td className="td-id">{fact.name}</td>
-                  <td className="td-type">{fact.type}</td>
-                  <td style={{ color: '#94a3b8', fontSize: '0.8125rem' }}>{fact.values?.join(', ') ?? '—'}</td>
-                  <td>{fact.description}</td>
-                  <td className="td-actions">
-                    <button className="btn-admin btn-admin-ghost" onClick={() => setModal({ kind: 'edit-fact', fact })}>Edit</button>
-                    <button className="btn-admin btn-admin-danger" onClick={() => deleteFact(fact.name)}>Delete</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* ── Rules ────────────────────────────────────────────────────── */}
-        <div className="admin-section-header">
-          <div>
-            <h2>Inference Rules</h2>
-            <p>Sorted by salience (highest fires first). Condition and action store only the function body — <code>f</code> is always available as the Facts parameter.</p>
+        {/* ── Rules ──────────────────────────────────────────────────────── */}
+        <section>
+          <div className="flex items-end justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold">Inference Rules</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Sorted by salience (highest fires first).
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={resetRules}>Reset to defaults</Button>
+              <Button size="sm" onClick={() => setModal({ kind: 'add-rule' })}>+ Add rule</Button>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button className="btn-admin btn-admin-danger" onClick={resetRules}>Reset to defaults</button>
-            <button className="btn-admin btn-admin-primary" onClick={() => setModal({ kind: 'add-rule' })}>+ Add rule</button>
+
+          <div className="border rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-8 text-center">Sal.</TableHead>
+                  <TableHead className="w-52">ID</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Condition</TableHead>
+                  <TableHead>Action</TableHead>
+                  <TableHead className="w-28 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sortedRules.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
+                      No rules defined.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {sortedRules.map((rule) => (
+                  <TableRow key={rule.id}>
+                    <TableCell className="text-center">
+                      <Badge variant={salienceBadge(rule.salience)} className="tabular-nums">
+                        {rule.salience}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-indigo-600 dark:text-indigo-400">{rule.id}</TableCell>
+                    <TableCell className="text-sm max-w-50 truncate" title={rule.description}>
+                      {rule.description}
+                    </TableCell>
+                    <TableCell
+                      className="font-mono text-xs text-muted-foreground max-w-55 truncate"
+                      title={rule.condition}
+                    >
+                      {rule.condition}
+                    </TableCell>
+                    <TableCell
+                      className="font-mono text-xs text-muted-foreground max-w-55 truncate"
+                      title={rule.action}
+                    >
+                      {rule.action}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setModal({ kind: 'edit-rule', rule })}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => deleteRule(rule.id)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
-        </div>
+        </section>
+      </main>
 
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th style={{ textAlign: 'center' }}>Sal.</th>
-                <th>Description</th>
-                <th>IF (condition body)</th>
-                <th>THEN (action body)</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedRules.length === 0 && (
-                <tr><td colSpan={6} className="empty-state">No rules defined.</td></tr>
-              )}
-              {sortedRules.map((rule) => (
-                <tr key={rule.id}>
-                  <td className="td-id">{rule.id}</td>
-                  <td className="td-salience">{rule.salience}</td>
-                  <td>{rule.description}</td>
-                  <td className="td-code" title={rule.condition}>{rule.condition}</td>
-                  <td className="td-code" title={rule.action}>{rule.action}</td>
-                  <td className="td-actions">
-                    <button className="btn-admin btn-admin-ghost" onClick={() => setModal({ kind: 'edit-rule', rule })}>Edit</button>
-                    <button className="btn-admin btn-admin-danger" onClick={() => deleteRule(rule.id)}>Delete</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ── Modals ─────────────────────────────────────────────────────── */}
-      {modal.kind === 'add-fact'  && <FactModal initial={null} onSave={saveFact} onClose={closeModal} />}
-      {modal.kind === 'edit-fact' && <FactModal initial={modal.fact} onSave={saveFact} onClose={closeModal} />}
-      {modal.kind === 'add-rule'  && <RuleModal initial={null} onSave={saveRule} onClose={closeModal} />}
-      {modal.kind === 'edit-rule' && <RuleModal initial={modal.rule} onSave={saveRule} onClose={closeModal} />}
-      {modal.kind === 'change-pw' && <ChangePwModal onClose={closeModal} />}
+      {/* ── Dialogs ──────────────────────────────────────────────────────── */}
+      <FactDialog
+        open={modal.kind === 'add-fact' || modal.kind === 'edit-fact'}
+        initial={modal.kind === 'edit-fact' ? modal.fact : null}
+        onSave={saveFact}
+        onClose={closeModal}
+      />
+      <RuleDialog
+        open={modal.kind === 'add-rule' || modal.kind === 'edit-rule'}
+        initial={modal.kind === 'edit-rule' ? modal.rule : null}
+        onSave={saveRule}
+        onClose={closeModal}
+      />
+      <ChangePwDialog
+        open={modal.kind === 'change-pw'}
+        onClose={closeModal}
+      />
     </div>
   );
 }
