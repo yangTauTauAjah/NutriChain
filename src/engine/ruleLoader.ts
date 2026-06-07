@@ -57,7 +57,7 @@ function buildFn<T>(body: string): (f: Facts) => T {
   // eslint-disable-next-line @typescript-eslint/no-implied-eval
   const factory = new Function(
     'ALLERGEN_FOODS', 'DIET_FOODS', 'ACTIVITY_MULTIPLIERS',
-    `return function(f) { ${src} };`,
+    `return function(FACTS) { ${src} };`,
   ) as (
     a: typeof ALLERGEN_FOODS,
     d: typeof DIET_FOODS,

@@ -44,6 +44,7 @@ import {
   AlertTitle,
 } from "@/components/ui/alert"
 import { AlertCircleIcon } from 'lucide-react';
+import './admin.css'
 
 // ── Password helpers ─────────────────────────────────────────────────────────
 
