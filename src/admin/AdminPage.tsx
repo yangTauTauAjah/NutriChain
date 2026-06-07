@@ -41,7 +41,6 @@ import {
 } from '@/components/ui/select';
 import {
   Alert,
-  AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert"
 import { AlertCircleIcon } from 'lucide-react';
@@ -191,8 +190,10 @@ function RuleDialog({ open, initial, onSave, onClose }: RuleDialogProps) {
   const [valMsg, setValMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   useEffect(() => {
-    setRule(initial ?? { ...EMPTY_RULE });
-    setValMsg(null);
+    (() => {
+      setRule(initial ?? { ...EMPTY_RULE });
+      setValMsg(null);
+    })();
   }, [initial, open]);
 
   function set<K extends keyof RuleJson>(key: K, val: RuleJson[K]) {
@@ -449,13 +450,13 @@ export default function AdminPage() {
   function saveFact(fact: FactFieldSchema) {
     const updated = modal.kind === 'add-fact'
       ? [...schema, fact]
-      : schema.map((f) => (FACTS.name === fact.name ? fact : f));
+      : schema.map((f) => (f.name === fact.name ? fact : f));
     setSchema(updated); saveFactsSchema(updated); closeModal();
   }
 
   function deleteFact(name: string) {
     if (!confirm(`Delete fact field "${name}"?`)) return;
-    const updated = schema.filter((f) => FACTS.name !== name);
+    const updated = schema.filter((f) => f.name !== name);
     setSchema(updated); saveFactsSchema(updated);
   }
 
