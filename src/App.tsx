@@ -46,7 +46,7 @@ export default function App() {
 
   return (
     <div className="app flex flex-col min-h-screen bg-gray-50">
-      <header className="bg-green-800 text-white px-6 py-4 shrink-0">
+      <header className="flex  gap-8 items-center bg-green-800 text-white px-6 py-4 shrink-0">
         <div className="flex items-center gap-2">
           <span className="text-2xl">🌿</span>
           <span className="text-xl font-bold tracking-tight">NutriChain</span>

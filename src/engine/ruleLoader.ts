@@ -107,8 +107,18 @@ export function getRulesJson(): RuleJson[] {
   return defaultRulesJson as RuleJson[];
 }
 
+function persistToFile(url: string, data: unknown): void {
+  if (!import.meta.env.DEV) return;
+  void fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }).catch(() => { /* dev server not available — localStorage is the fallback */ });
+}
+
 export function saveRulesJson(rules: RuleJson[]): void {
   localStorage.setItem(RULES_STORAGE_KEY, JSON.stringify(rules));
+  persistToFile('/api/save-rules', rules);
 }
 
 export function resetRulesJson(): void {
@@ -125,6 +135,7 @@ export function getFactsSchema(): FactFieldSchema[] {
 
 export function saveFactsSchema(schema: FactFieldSchema[]): void {
   localStorage.setItem(SCHEMA_STORAGE_KEY, JSON.stringify(schema));
+  persistToFile('/api/save-schema', schema);
 }
 
 export function resetFactsSchema(): void {
