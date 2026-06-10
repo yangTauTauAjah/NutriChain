@@ -54,7 +54,6 @@ type ActionFn    = (facts: Facts) => Partial<Facts>;
 
 function buildFn<T>(body: string): (f: Facts) => T {
   const src = /\breturn\b/.test(body) ? body : `return (${body});`;
-  // eslint-disable-next-line @typescript-eslint/no-implied-eval
   const factory = new Function(
     'ALLERGEN_FOODS', 'DIET_FOODS', 'ACTIVITY_MULTIPLIERS',
     `return function(FACTS) { ${src} };`,

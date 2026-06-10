@@ -5,7 +5,7 @@ interface Props {
 }
 
 export function ProgressStepper({ step }: Props) {
-  const steps = ['Profile', 'Health Info', 'Results'];
+  const steps = ['Profile', 'Health Info', 'Lifestyle', 'Results'];
   return (
     <div className="flex items-center justify-center mb-8">
       {steps.map((label, i) => {

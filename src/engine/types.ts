@@ -4,6 +4,9 @@ export type Goal = 'lose_weight' | 'maintain' | 'gain_weight';
 export type MedicalCondition = 'hypertension' | 'diabetes';
 export type BMICategory = 'Underweight' | 'Normal' | 'Overweight' | 'Obese';
 export type DietType = 'DASH' | 'Low-GI' | 'Balanced';
+export type ExerciseType = 'sedentary' | 'cardio' | 'strength' | 'mixed';
+export type DietStyle = 'omnivore' | 'vegetarian' | 'vegan' | 'pescatarian';
+export type StressLevel = 'low' | 'moderate' | 'high';
 
 export interface UserProfile {
   age: number;
@@ -14,6 +17,13 @@ export interface UserProfile {
   medical_conditions: MedicalCondition[];
   allergies: string[];
   goal: Goal;
+  exercise_type: ExerciseType;
+  exercise_days: number;
+  sleep_hours: number;
+  diet_style: DietStyle;
+  meals_per_day: number;
+  eats_breakfast: boolean;
+  stress_level: StressLevel;
 }
 
 export interface Facts {
@@ -26,6 +36,15 @@ export interface Facts {
   medical_conditions?: MedicalCondition[];
   allergies?: string[];
   goal?: Goal;
+
+  // Lifestyle input facts
+  exercise_type?: ExerciseType;
+  exercise_days?: number;
+  sleep_hours?: number;
+  diet_style?: DietStyle;
+  meals_per_day?: number;
+  eats_breakfast?: boolean;
+  stress_level?: StressLevel;
 
   // Derived biometric facts
   bmi?: number;

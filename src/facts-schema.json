@@ -44,6 +44,44 @@
     "values": ["lose_weight", "maintain", "gain_weight"]
   },
   {
+    "name": "exercise_type",
+    "type": "enum",
+    "description": "Type of exercise the user primarily performs",
+    "values": ["sedentary", "cardio", "strength", "mixed"]
+  },
+  {
+    "name": "exercise_days",
+    "type": "number",
+    "description": "Number of days per week the user exercises (0–7)"
+  },
+  {
+    "name": "sleep_hours",
+    "type": "number",
+    "description": "Average hours of sleep per night"
+  },
+  {
+    "name": "diet_style",
+    "type": "enum",
+    "description": "User's dietary lifestyle preference",
+    "values": ["omnivore", "vegetarian", "vegan", "pescatarian"]
+  },
+  {
+    "name": "meals_per_day",
+    "type": "number",
+    "description": "Number of meals the user eats per day"
+  },
+  {
+    "name": "eats_breakfast",
+    "type": "boolean",
+    "description": "Whether the user eats breakfast regularly"
+  },
+  {
+    "name": "stress_level",
+    "type": "enum",
+    "description": "User's current perceived stress level",
+    "values": ["low", "moderate", "high"]
+  },
+  {
     "name": "bmi",
     "type": "number",
     "description": "Body Mass Index — derived by engine"
@@ -113,7 +151,7 @@
   {
     "name": "blacklisted_foods",
     "type": "string[]",
-    "description": "Foods eliminated due to declared allergies — derived by engine"
+    "description": "Foods eliminated due to declared allergies and dietary style — derived by engine"
   },
   {
     "name": "recommended_foods",

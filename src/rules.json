@@ -35,6 +35,27 @@
     "action": "({ blacklisted_foods: ALLERGEN_FOODS.eggs })"
   },
   {
+    "id": "R_Vegan_Blacklist",
+    "description": "Vegan diet style — exclude all animal-derived foods",
+    "salience": 29,
+    "condition": "FACTS.diet_style === 'vegan'",
+    "action": "({ blacklisted_foods: ['All meats (beef, pork, chicken, turkey, lamb)', 'Fish & seafood (salmon, tuna, shrimp, oysters)', 'Eggs & egg-based products', 'Dairy products (milk, cheese, yogurt, butter)', 'Gelatin & other animal-derived additives'] })"
+  },
+  {
+    "id": "R_Vegetarian_Blacklist",
+    "description": "Vegetarian diet style — exclude all meat and fish",
+    "salience": 29,
+    "condition": "FACTS.diet_style === 'vegetarian'",
+    "action": "({ blacklisted_foods: ['Red meat (beef, pork, lamb, venison)', 'Poultry (chicken, turkey, duck)', 'Fish & seafood', 'Meat-based broths and gravies', 'Gelatin-containing foods'] })"
+  },
+  {
+    "id": "R_Pescatarian_Blacklist",
+    "description": "Pescatarian diet style — exclude red meat and poultry",
+    "salience": 29,
+    "condition": "FACTS.diet_style === 'pescatarian'",
+    "action": "({ blacklisted_foods: ['Red meat (beef, pork, lamb)', 'Poultry (chicken, turkey, duck)', 'Processed deli meats (sausage, salami, hot dogs)'] })"
+  },
+  {
     "id": "R_Both_Hypertension_Diabetes",
     "description": "Both hypertension & diabetes → DASH diet with reduced carbs",
     "salience": 21,
@@ -140,6 +161,20 @@
     "action": "({ target_calories: FACTS.tdee + 200 })"
   },
   {
+    "id": "R_Sleep_Deficit_Penalty",
+    "description": "Sleep < 6 h/night — reduce target calories by 5% for metabolic adaptation",
+    "salience": 5,
+    "condition": "FACTS.sleep_hours !== undefined && FACTS.sleep_hours < 6 && FACTS.target_calories !== undefined && FACTS.carb_g === undefined",
+    "action": "({ target_calories: Math.round(FACTS.target_calories * 0.95) })"
+  },
+  {
+    "id": "R_High_Stress_Adjust",
+    "description": "High stress level — increase target calories by 5% for cortisol-driven metabolic demand",
+    "salience": 5,
+    "condition": "FACTS.stress_level === 'high' && FACTS.target_calories !== undefined && FACTS.carb_g === undefined",
+    "action": "({ target_calories: Math.round(FACTS.target_calories * 1.05) })"
+  },
+  {
     "id": "R_Macros_DASH",
     "description": "DASH diet → macros: 55% carb / 27% fat / 18% protein",
     "salience": 4,
@@ -187,5 +222,33 @@
     "salience": 2,
     "condition": "FACTS.diet_type === 'Balanced' && FACTS.recommended_foods === undefined",
     "action": "({ recommended_foods: DIET_FOODS['Balanced'].recommended })"
+  },
+  {
+    "id": "R_Strength_Protein_Boost",
+    "description": "Strength or mixed training — increase protein target by 20% for muscle repair and growth",
+    "salience": 1,
+    "condition": "(FACTS.exercise_type === 'strength' || FACTS.exercise_type === 'mixed') && FACTS.protein_g !== undefined",
+    "action": "({ protein_g: Math.round(FACTS.protein_g * 1.2) })"
+  },
+  {
+    "id": "R_Vegan_Foods_Recommend",
+    "description": "Vegan diet style — add plant-based protein and nutrient-dense food recommendations",
+    "salience": 1,
+    "condition": "FACTS.diet_style === 'vegan' && FACTS.recommended_foods !== undefined",
+    "action": "({ recommended_foods: ['Tofu & tempeh (fermented soy protein)', 'Lentils & chickpeas (iron + protein)', 'Nutritional yeast (B12 & protein)', 'Fortified plant milks (oat, soy, almond)', 'Chia & hemp seeds (omega-3 + protein)', 'Dark leafy greens (kale, spinach) for iron & calcium', 'Seaweed & nori (iodine source)'] })"
+  },
+  {
+    "id": "R_Vegetarian_Foods_Recommend",
+    "description": "Vegetarian diet style — add lacto-ovo vegetarian protein sources",
+    "salience": 1,
+    "condition": "FACTS.diet_style === 'vegetarian' && FACTS.recommended_foods !== undefined",
+    "action": "({ recommended_foods: ['Eggs (versatile complete protein)', 'Greek yogurt & cottage cheese', 'Paneer & tofu', 'Lentils & legumes', 'Quinoa (complete protein grain)', 'Nuts & seeds (almonds, pumpkin seeds)', 'Tempeh & seitan'] })"
+  },
+  {
+    "id": "R_Pescatarian_Foods_Recommend",
+    "description": "Pescatarian diet style — emphasize fish and seafood as primary protein sources",
+    "salience": 1,
+    "condition": "FACTS.diet_style === 'pescatarian' && FACTS.recommended_foods !== undefined",
+    "action": "({ recommended_foods: ['Salmon (omega-3 rich, anti-inflammatory)', 'Tuna & sardines (lean high-protein)', 'Shrimp & prawns (low-calorie protein)', 'Cod & tilapia (low-fat white fish)', 'Oysters & clams (zinc + B12 rich)', 'Plant proteins (lentils, tofu) as supplement'] })"
   }
 ]

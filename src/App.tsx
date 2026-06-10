@@ -6,6 +6,7 @@ import { ProgressStepper } from './components/ProgressStepper';
 import { Step1 } from './components/Step1';
 import { Step2 } from './components/Step2';
 import { Step3 } from './components/Step3';
+import { Step4 } from './components/Step4';
 
 const DEFAULT_PROFILE: UserProfile = {
   age: 0,
@@ -16,6 +17,13 @@ const DEFAULT_PROFILE: UserProfile = {
   medical_conditions: [],
   allergies: [],
   goal: 'maintain',
+  exercise_type: 'sedentary',
+  exercise_days: 0,
+  sleep_hours: 7,
+  diet_style: 'omnivore',
+  meals_per_day: 3,
+  eats_breakfast: true,
+  stress_level: 'moderate',
 };
 
 export default function App() {
@@ -35,7 +43,7 @@ export default function App() {
   function handleAnalyze() {
     const res = runInference({ ...profile });
     setResult(res);
-    setStep(3);
+    setStep(4);
   }
 
   function handleReset() {
@@ -67,11 +75,19 @@ export default function App() {
             profile={profile}
             onChange={setProfile}
             onBack={() => setStep(1)}
+            onAnalyze={() => setStep(3)}
+          />
+        )}
+        {step === 3 && (
+          <Step3
+            profile={profile}
+            onChange={setProfile}
+            onBack={() => setStep(2)}
             onAnalyze={handleAnalyze}
           />
         )}
-        {step === 3 && result && (
-          <Step3 result={result} onReset={handleReset} />
+        {step === 4 && result && (
+          <Step4 result={result} onReset={handleReset} />
         )}
       </main>
 
